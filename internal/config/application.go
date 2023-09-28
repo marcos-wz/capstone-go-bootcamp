@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// apiPrefixFmt is the format used to create the application's base path.
+// The "%d" represents the major number value. E.g. "/api/v1"
 const apiPrefixFmt = "/api/v%d"
 
 // Application holds and retrieves the application's configuration properties.

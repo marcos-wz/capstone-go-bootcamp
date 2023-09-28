@@ -12,11 +12,15 @@ import (
 )
 
 const (
+	// dataFileMode is the default permissions set to the data files.
 	dataFileMode = os.FileMode(0600)
-	dataDirMode  = os.FileMode(0700)
+	// dataDirMode is the default permissions set to the data directories.
+	dataDirMode = os.FileMode(0700)
 )
 
+// HttpClient is the abstraction of a dependency of type http.Client, which allows mocking.
 type HttpClient interface {
+	// Do send an HTTP request and returns an HTTP response.
 	Do(req *http.Request) (*http.Response, error)
 }
 

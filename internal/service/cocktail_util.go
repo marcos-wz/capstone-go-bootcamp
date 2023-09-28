@@ -7,6 +7,7 @@ import (
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/entity"
 )
 
+// The cocktail filter type definitions
 const (
 	invalidFltr    cocktailFilter = "invalid"
 	idFltr         cocktailFilter = "id"
@@ -22,6 +23,7 @@ const (
 
 var _ fmt.Stringer = cocktailFilter("")
 
+// cocktailFilter represents a cocktail filter type
 type cocktailFilter string
 
 func (f cocktailFilter) String() string {
@@ -48,6 +50,7 @@ func newCocktailFilter(filter string) cocktailFilter {
 	}
 }
 
+// filterCocktailsById returns the given entity.Cocktail records filtered by the ID property.
 func filterCocktailsById(id int, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	for _, rec := range recs {
@@ -58,6 +61,7 @@ func filterCocktailsById(id int, recs []entity.Cocktail) []entity.Cocktail {
 	return cocktails
 }
 
+// filterCocktailsByName returns the given entity.Cocktail records filtered by the Name property.
 func filterCocktailsByName(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
@@ -74,6 +78,7 @@ func filterCocktailsByName(name string, recs []entity.Cocktail) []entity.Cocktai
 	return cocktails
 }
 
+// filterCocktailsByAlcoholic returns the given entity.Cocktail records filtered by the Alcoholic property.
 func filterCocktailsByAlcoholic(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
@@ -87,6 +92,7 @@ func filterCocktailsByAlcoholic(name string, recs []entity.Cocktail) []entity.Co
 	return cocktails
 }
 
+// filterCocktailsByCategory returns the given entity.Cocktail records filtered by the Category property.
 func filterCocktailsByCategory(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
@@ -103,6 +109,7 @@ func filterCocktailsByCategory(name string, recs []entity.Cocktail) []entity.Coc
 	return cocktails
 }
 
+// filterCocktailsByIngredient returns the entity.Cocktail records filtered by any ingredient included in the Ingredients list.
 func filterCocktailsByIngredient(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
@@ -121,6 +128,7 @@ func filterCocktailsByIngredient(name string, recs []entity.Cocktail) []entity.C
 	return cocktails
 }
 
+// filterCocktailsByGlass returns the given entity.Cocktail records filtered by the Glass property.
 func filterCocktailsByGlass(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {

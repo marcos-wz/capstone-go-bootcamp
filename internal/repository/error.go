@@ -23,6 +23,7 @@ var (
 	ErrCocktailIngredientsEmpty  = errors.New("cocktail ingredients empty")
 )
 
+// CsvErr covers all errors related to CSV operations and wraps the error that caused it.
 type CsvErr struct {
 	Err error
 }
@@ -35,6 +36,7 @@ func (e CsvErr) Unwrap() error {
 	return e.Err
 }
 
+// DataApiErr covers all errors related to data api operations and wraps the error that caused it.
 type DataApiErr struct {
 	Err error
 }

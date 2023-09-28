@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/controller/mocks"
@@ -64,12 +65,12 @@ func TestCocktail_GetCocktail(t *testing.T) {
 			code:   http.StatusBadRequest,
 			err: errHTTP{
 				Code:      http.StatusBadRequest,
-				ErrorType: "*errors.errorString",
-				Message:   "some service error",
+				ErrorType: errType(reflect.TypeOf(testSvcErr).String()),
+				Message:   testSvcErr.Error(),
 			},
 			svc: svc{
 				resp: nil,
-				err:  testSvcError,
+				err:  testSvcErr,
 			},
 			wantErr: true,
 		},
@@ -198,12 +199,12 @@ func TestCocktail_GetCocktails(t *testing.T) {
 			code: http.StatusBadRequest,
 			err: errHTTP{
 				Code:      http.StatusBadRequest,
-				ErrorType: "*errors.errorString",
-				Message:   "some service error",
+				ErrorType: errType(reflect.TypeOf(testSvcErr).String()),
+				Message:   testSvcErr.Error(),
 			},
 			svc: svc{
 				resp: nil,
-				err:  testSvcError,
+				err:  testSvcErr,
 			},
 			wantErr: true,
 		},
@@ -308,12 +309,12 @@ func TestCocktail_UpdateDB(t *testing.T) {
 			code: http.StatusBadRequest,
 			err: errHTTP{
 				Code:      http.StatusBadRequest,
-				ErrorType: "*errors.errorString",
-				Message:   "some service error",
+				ErrorType: errType(reflect.TypeOf(testSvcErr).String()),
+				Message:   testSvcErr.Error(),
 			},
 			svc: svc{
 				summary: ct.DBOpsSummary{},
-				err:     testSvcError,
+				err:     testSvcErr,
 			},
 			wantErr: true,
 		},

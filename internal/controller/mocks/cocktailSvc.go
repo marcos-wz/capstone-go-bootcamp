@@ -12,16 +12,19 @@ type CocktailSvc struct {
 	mock.Mock
 }
 
+// GetFiltered provides a mock function with given fields:
 func (o *CocktailSvc) GetFiltered(filter, value string) ([]entity.Cocktail, error) {
 	args := o.Called(filter, value)
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }
 
+// GetAll provides a mock function with given fields:
 func (o *CocktailSvc) GetAll() ([]entity.Cocktail, error) {
 	args := o.Called()
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }
 
+// UpdateDB provides a mock function with given fields:
 func (o *CocktailSvc) UpdateDB() (ct.DBOpsSummary, error) {
 	args := o.Called()
 	return args.Get(0).(ct.DBOpsSummary), args.Error(1)

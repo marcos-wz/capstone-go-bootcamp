@@ -11,6 +11,7 @@ var (
 	ErrFltrInvalid    = errors.New("invalid filter")
 )
 
+// FilterErr covers all errors related to Filters and wraps the error that caused it.
 type FilterErr struct {
 	Err error
 }

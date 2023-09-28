@@ -31,6 +31,7 @@ const (
 	updatedAtIdx      csvColumn = 15
 )
 
+// csvHeadersMap are the names of the fields used in the headers/columns of the CSV file
 var csvHeadersMap = map[csvColumn]string{
 	idIdx:             "id",
 	nameIdx:           "name",
@@ -50,7 +51,7 @@ var csvHeadersMap = map[csvColumn]string{
 	updatedAtIdx:      "updated_at",
 }
 
-// csvColumn represents the column index of the csv file.
+// csvColumn represents the column's index of the csv file.
 type csvColumn int
 
 // drink represents the json record provided by the public API.

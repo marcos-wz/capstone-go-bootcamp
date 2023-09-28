@@ -11,16 +11,19 @@ type CocktailRepo struct {
 	mock.Mock
 }
 
+// ReadAll provides a mock function with given fields:
 func (o *CocktailRepo) ReadAll() ([]entity.Cocktail, error) {
 	args := o.Called()
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }
 
+// ReplaceData provides a mock function with given fields:
 func (o *CocktailRepo) ReplaceData(recs []entity.Cocktail) error {
 	args := o.Called(recs)
 	return args.Error(0)
 }
 
+// FetchData provides a mock function with given fields:
 func (o *CocktailRepo) FetchData() ([]entity.Cocktail, error) {
 	args := o.Called()
 	return args.Get(0).([]entity.Cocktail), args.Error(1)

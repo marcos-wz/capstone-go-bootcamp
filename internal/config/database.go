@@ -2,11 +2,13 @@ package config
 
 import "path/filepath"
 
+// Database holds the configurations of the supported databases
 type Database struct {
 	driver string
 	Csv    CsvDB
 }
 
+// Driver returns the configured database driver.
 func (db Database) Driver() string {
 	return db.driver
 }
