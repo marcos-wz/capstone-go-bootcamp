@@ -13,47 +13,62 @@ import (
 )
 
 const (
-	repoCsvErrType   errType = "RepositoryCSVError"
-	svcFilterErrType errType = "ServiceFilterError"
+	repoCsvErrType     errType = "RepositoryCSVError"
+	repoDataApiErrType errType = "RepositoryDataAPIError"
+	svcFilterErrType   errType = "ServiceFilterError"
 )
 
 var _ fmt.Stringer = errType("")
 
+// errHTTP represents the message in the http error responses.
 type errHTTP struct {
 	Code      int     `json:"code"`
 	ErrorType errType `json:"status"`
 	Message   string  `json:"message"`
 }
 
+// errType represents the error classification or status.
 type errType string
 
 func (e errType) String() string {
 	return string(e)
 }
 
+// errJSON returns an error JSON response.
 func errJSON(w http.ResponseWriter, r *http.Request, err error) {
 	errHttp := newErrHTTP(err)
 	render.Status(r, errHttp.Code)
 	render.JSON(w, r, errHttp)
 }
 
+// newErrHTTP returns a new errHTTP instance.
+// It sets the Code, ErrorType, and Message values based on the error type.
 func newErrHTTP(err error) errHTTP {
 	var (
-		repoCsvErr   *repository.CsvErr
-		svcFilterErr *service.FilterErr
+		repoCsvErr     *repository.CsvErr
+		repoDataApiErr *repository.DataApiErr
+		svcFilterErr   *service.FilterErr
 	)
 
 	switch {
 
 	// ###########  REPOSITORY ERRORS ###########
+
 	case errors.As(err, &repoCsvErr):
 		return errHTTP{
 			Code:      http.StatusInternalServerError,
 			ErrorType: repoCsvErrType,
 			Message:   err.Error(),
 		}
+	case errors.As(err, &repoDataApiErr):
+		return errHTTP{
+			Code:      http.StatusBadGateway,
+			ErrorType: repoDataApiErrType,
+			Message:   err.Error(),
+		}
 
 	// ########### SERVICE ERRORS ###########
+
 	case errors.As(err, &svcFilterErr):
 		return errHTTP{
 			Code:      http.StatusUnprocessableEntity,

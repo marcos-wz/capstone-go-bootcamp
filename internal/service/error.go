@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	ErrFilterValueEmpty     = errors.New("filter empty")
-	ErrFilterNotSupported   = errors.New("filter not supported")
-	ErrFilterNotImplemented = errors.New("filter not implemented")
+	ErrFltrTypeEmpty  = errors.New("filter type empty")
+	ErrFltrValueEmpty = errors.New("filter value empty")
+	ErrFltrInvalid    = errors.New("invalid filter")
 )
 
+// FilterErr covers all errors related to Filters and wraps the error that caused it.
 type FilterErr struct {
 	Err error
 }
