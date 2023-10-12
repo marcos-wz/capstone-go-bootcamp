@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	ct "github.com/marcos-wz/capstone-go-bootcamp/internal/customtype"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/entity"
 
 	"github.com/stretchr/testify/mock"
@@ -17,14 +18,20 @@ func (o *CocktailRepo) ReadAll() ([]entity.Cocktail, error) {
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }
 
-// ReplaceData provides a mock function with given fields:
-func (o *CocktailRepo) ReplaceData(recs []entity.Cocktail) error {
+// ReadCC provides a mock function with given fields:
+func (o *CocktailRepo) ReadCC(nType ct.NumberType, maxJobs, jWorker int) ([]entity.Cocktail, error) {
+	args := o.Called(nType, maxJobs, jWorker)
+	return args.Get(0).([]entity.Cocktail), args.Error(1)
+}
+
+// ReplaceDB provides a mock function with given fields:
+func (o *CocktailRepo) ReplaceDB(recs []entity.Cocktail) error {
 	args := o.Called(recs)
 	return args.Error(0)
 }
 
-// FetchData provides a mock function with given fields:
-func (o *CocktailRepo) FetchData() ([]entity.Cocktail, error) {
+// Fetch provides a mock function with given fields:
+func (o *CocktailRepo) Fetch() ([]entity.Cocktail, error) {
 	args := o.Called()
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }

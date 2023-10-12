@@ -17,8 +17,9 @@ type Cocktail struct {
 // CocktailRepo is the abstraction of the Cocktail repository dependency.
 type CocktailRepo interface {
 	ReadAll() ([]entity.Cocktail, error)
-	ReplaceData(recs []entity.Cocktail) error
-	FetchData() ([]entity.Cocktail, error)
+	ReadCC(nType ct.NumberType, maxJobs, jWorker int) ([]entity.Cocktail, error)
+	ReplaceDB(recs []entity.Cocktail) error
+	Fetch() ([]entity.Cocktail, error)
 }
 
 // NewCocktail returns a new Cocktail service implementation.
@@ -37,7 +38,7 @@ func (s Cocktail) GetFiltered(filter, value string) ([]entity.Cocktail, error) {
 	if value == "" {
 		return nil, &FilterErr{ErrFltrValueEmpty}
 	}
-	fltr := newCocktailFilter(filter)
+	fltr := newCocktailFltr(filter)
 	if fltr == invalidFltr {
 		return nil, &FilterErr{ErrFltrInvalid}
 	}
@@ -56,17 +57,17 @@ func (s Cocktail) GetFiltered(filter, value string) ([]entity.Cocktail, error) {
 		if e != nil {
 			return nil, &FilterErr{e}
 		}
-		return filterCocktailsById(id, recs), nil
+		return cocktailsById(id, recs), nil
 	case nameFltr:
-		return filterCocktailsByName(value, recs), nil
+		return cocktailsByName(value, recs), nil
 	case alcoholicFltr:
-		return filterCocktailsByAlcoholic(value, recs), nil
+		return cocktailsByAlcoholic(value, recs), nil
 	case categoryFltr:
-		return filterCocktailsByCategory(value, recs), nil
+		return cocktailsByCategory(value, recs), nil
 	case ingredientFltr:
-		return filterCocktailsByIngredient(value, recs), nil
+		return cocktailsByIngredient(value, recs), nil
 	case glassFltr:
-		return filterCocktailsByGlass(value, recs), nil
+		return cocktailsByGlass(value, recs), nil
 	default:
 		logger.Log().Error().Err(ErrFltrInvalid).Str("filter", filter).Str("value", value).
 			Msgf("GetFiltered: filter not supported")
@@ -76,16 +77,34 @@ func (s Cocktail) GetFiltered(filter, value string) ([]entity.Cocktail, error) {
 
 // GetAll returns all the entity.Cocktail records from the database.
 func (s Cocktail) GetAll() ([]entity.Cocktail, error) {
-	cocktails := make([]entity.Cocktail, 0)
-	recs, err := s.repo.ReadAll()
+	return s.repo.ReadAll()
+}
+
+// GetCC returns a list of entity.Cocktail from the database concurrently.
+// nType: is the type number. Only support "odd" or "even"
+// jobs: is the amount of valid records to be processed.
+// jWorker: is the amount of jobs that each worker performs.
+func (s Cocktail) GetCC(nType, jobs, jWorker string) ([]entity.Cocktail, error) {
+	nt := ct.NewNumType(nType)
+	if nt == ct.InvalidNum || (nt != ct.EvenNum && nt != ct.OddNum) {
+		return nil, &ArgsErr{ErrInvalidNumType}
+	}
+	j, err := strconv.Atoi(jobs)
 	if err != nil {
-		return nil, err
+		return nil, &ArgsErr{err}
+	}
+	jw, err := strconv.Atoi(jWorker)
+	if err != nil {
+		return nil, &ArgsErr{err}
+	}
+	if j == 0 || jw == 0 {
+		return nil, &ArgsErr{ErrZeroValue}
+	}
+	if jw > j {
+		return nil, &ArgsErr{ErrJobsWorkerHigher}
 	}
 
-	if len(recs) > 0 {
-		return recs, nil
-	}
-	return cocktails, nil
+	return s.repo.ReadCC(nt, j, jw)
 }
 
 // UpdateDB updates the database records from the public API and returns a database operations summary.
@@ -98,19 +117,19 @@ func (s Cocktail) UpdateDB() (ct.DBOpsSummary, error) {
 		return ct.DBOpsSummary{}, err
 	}
 
-	extData, err := s.repo.FetchData()
+	extData, err := s.repo.Fetch()
 	if err != nil {
 		return ct.DBOpsSummary{}, err
 	}
 
 	status := noChangesDBStatus
 	start := time.Now().UTC()
-	nrCounter := 0
-	mrCounter := 0
+	nCreated := 0
+	nModified := 0
 	for _, rec := range extData {
 		index, found := findCocktail(rec.ID, dataSet)
 		if !found {
-			nrCounter++
+			nCreated++
 			rec.CreatedAt = dateTimeNow()
 			rec.UpdatedAt = rec.CreatedAt
 			dataSet = append(dataSet, rec)
@@ -118,22 +137,22 @@ func (s Cocktail) UpdateDB() (ct.DBOpsSummary, error) {
 		}
 
 		if rec.SrcDate.After(dataSet[index].SrcDate) {
-			mrCounter++
+			nModified++
 			rec.UpdatedAt = dateTimeNow()
 			dataSet[index] = rec
 			continue
 		}
 
 		if rec.SrcDate == dataSet[index].SrcDate && !cocktailsEqual(rec, dataSet[index]) {
-			mrCounter++
+			nModified++
 			rec.UpdatedAt = dateTimeNow()
 			dataSet[index] = rec
 		}
 	}
 
-	totalOps := nrCounter + mrCounter
+	totalOps := nCreated + nModified
 	if totalOps > 0 {
-		if err := s.repo.ReplaceData(dataSet); err != nil {
+		if err := s.repo.ReplaceDB(dataSet); err != nil {
 			return ct.DBOpsSummary{}, err
 		}
 		status = successfulUpdateDBStatus
@@ -145,8 +164,8 @@ func (s Cocktail) UpdateDB() (ct.DBOpsSummary, error) {
 		StartTime:    start,
 		EndTime:      end,
 		Duration:     end.Sub(start).String(),
-		NewRecs:      nrCounter,
-		ModifiedRecs: mrCounter,
+		NewRecs:      nCreated,
+		ModifiedRecs: nModified,
 		TotalOps:     totalOps,
 		TotalRecs:    len(dataSet),
 	}, nil

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	ct "github.com/marcos-wz/capstone-go-bootcamp/internal/customtype"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/logger"
 )
 
@@ -125,4 +126,19 @@ func checkEndpoint(endpoint string) error {
 		return ErrInvalidRespCode
 	}
 	return nil
+}
+
+// validNumType validate the number type of the given number. e.g. "Even","Odd"
+func validNumType(num int, nType ct.NumberType) bool {
+	switch nType {
+	case ct.EvenNum:
+		if num%2 == 0 {
+			return true
+		}
+	case ct.OddNum:
+		if num%2 != 0 {
+			return true
+		}
+	}
+	return false
 }

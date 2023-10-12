@@ -67,8 +67,27 @@ Filtering recipes by ``GLASS``. Possible values: cocktail, collins shot, martini
 ```
 http://localhost:8080/api/v0/cocktail/glass/martini
 ```
+### Retrieving Odd and Even recipes concurrently
+We can get a filtered list of cocktail recipes by <b>even</b> and <b>odd</b> records based on the `ID` property from the database concurrently 
+using the Worker-Pool pattern with following request format:
+```
+localhost:8080/api/v0/cocktails/{type}/{items}/{items-per-worker}"
+```
+Parameters description:
+> <b>type:</b> is the number type. Only support "odd" or "even" </br>
+<b>items:</b> is the amount of valid records to be processed. </br>
+<b>items per worker:</b> is the amount of jobs that each worker performs. </br></br>
+> *Note: the number of items per worker must not be higher than the items.*
 
+To retrieve `Even` records:
+```
+localhost:8080/api/v0/cocktails/even/18/6
+```
 
+To retrieve `Odd` records:
+```
+localhost:8080/api/v0/cocktails/odd/18/6
+```
 
 # Administrative Tasks:
 To update the database from the public API:

@@ -27,7 +27,7 @@ func TestNewCocktail(t *testing.T) {
 	assert.IsType(t, Cocktail{}, out)
 }
 
-func TestCocktail_GetCocktail(t *testing.T) {
+func TestCocktail_GetFiltered(t *testing.T) {
 	type params struct {
 		filter string
 		value  string
@@ -167,7 +167,7 @@ func TestCocktail_GetCocktail(t *testing.T) {
 	}
 }
 
-func TestCocktail_GetCocktails(t *testing.T) {
+func TestCocktail_GetAll(t *testing.T) {
 	type svc struct {
 		resp []entity.Cocktail
 		err  error
@@ -240,6 +240,127 @@ func TestCocktail_GetCocktails(t *testing.T) {
 
 			// Request
 			req, err := http.NewRequest("GET", "/cocktails", nil)
+			require.Nil(t, err)
+
+			// Server instance
+			rr := httptest.NewRecorder()
+			srv := newTestRouter(ctrl)
+			srv.ServeHTTP(rr, req)
+
+			// Tests
+			assert.Equal(t, tt.code, rr.Code)
+			if tt.wantErr {
+				var errMsg errHTTP
+				require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &errMsg))
+				assert.Equal(t, tt.err, errMsg)
+				return
+			}
+
+			var resp []entity.Cocktail
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			assert.Len(t, tt.svc.resp, len(resp))
+			assert.Equal(t, tt.svc.resp, resp)
+		})
+	}
+}
+
+func TestCocktail_GetCC(t *testing.T) {
+	type svc struct {
+		resp []entity.Cocktail
+		err  error
+	}
+	type args struct {
+		nType       string
+		items       string
+		itemsWorker string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		code    int
+		err     errHTTP
+		svc     svc
+		wantErr bool
+	}{
+		{
+			name: "Repository CSV error",
+			args: args{
+				nType: "even", items: "10", itemsWorker: "4",
+			},
+			code: http.StatusInternalServerError,
+			err: errHTTP{
+				Code:      http.StatusInternalServerError,
+				ErrorType: repoCsvErrType,
+				Message:   "csv: %!s(<nil>)",
+			},
+			svc: svc{
+				resp: nil,
+				err:  &repository.CsvErr{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Service Args error",
+			args: args{nType: "foo", items: "10", itemsWorker: "4"},
+			code: http.StatusUnprocessableEntity,
+			err: errHTTP{
+				Code:      http.StatusUnprocessableEntity,
+				ErrorType: svcArgsErrType,
+				Message:   "service arguments: invalid number type",
+			},
+			svc: svc{
+				resp: nil,
+				err:  &service.ArgsErr{Err: service.ErrInvalidNumType},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Not records",
+			args: args{nType: "even", items: "10", itemsWorker: "4"},
+			code: http.StatusOK,
+			svc: svc{
+				resp: []entity.Cocktail{},
+				err:  nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Even",
+			args: args{nType: "even", items: "10", itemsWorker: "4"},
+			code: http.StatusOK,
+			svc: svc{
+				resp: []entity.Cocktail{
+					{ID: 2, Name: "Bar", Alcoholic: "Non alcoholic", Category: "Some Category", Glass: "Shot glass", Ingredients: []entity.Ingredient{{Name: "water", Measure: "50ml"}}},
+				},
+				err: nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Odd",
+			args: args{nType: "even", items: "10", itemsWorker: "4"},
+			code: http.StatusOK,
+			svc: svc{
+				resp: []entity.Cocktail{
+					{ID: 1, Name: "Foo", Alcoholic: "Alcoholic", Category: "Foo Category", Glass: "Shot glass", Ingredients: []entity.Ingredient{{Name: "soda", Measure: "80ml"}}},
+					{ID: 3, Name: "Baz", Alcoholic: "Alcoholic", Category: "Some Category", Glass: "Cocktail glass", Ingredients: []entity.Ingredient{{Name: "soda", Measure: "100ml"}}},
+				},
+				err: nil,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mSvc := mocks.NewCocktailSvc()
+			mSvc.On("GetCC", tt.args.nType, tt.args.items, tt.args.itemsWorker).
+				Return(tt.svc.resp, tt.svc.err)
+			ctrl := Cocktail{svc: mSvc}
+
+			// Request
+			path := fmt.Sprintf("/cocktails/%v/%v/%v", tt.args.nType, tt.args.items, tt.args.itemsWorker)
+			req, err := http.NewRequest("GET", path, nil)
 			require.Nil(t, err)
 
 			// Server instance

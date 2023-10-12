@@ -21,6 +21,8 @@ var (
 	ErrCocktailNameEmpty         = errors.New("cocktail name empty")
 	ErrCocktailInstructionsEmpty = errors.New("cocktail instructions empty")
 	ErrCocktailIngredientsEmpty  = errors.New("cocktail ingredients empty")
+
+	ErrWPInvalidArgs = errors.New("worker pool: invalid arguments")
 )
 
 // CsvErr covers all errors related to CSV operations and wraps the error that caused it.
