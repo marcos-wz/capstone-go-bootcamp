@@ -30,8 +30,8 @@ func (f cocktailFilter) String() string {
 	return string(f)
 }
 
-// newCocktailFilter returns the cocktailFilter associated to the given filter.
-func newCocktailFilter(filter string) cocktailFilter {
+// newCocktailFltr returns the cocktailFilter associated to the given filter.
+func newCocktailFltr(filter string) cocktailFilter {
 	switch strings.ToLower(filter) {
 	case idFltr.String():
 		return idFltr
@@ -50,8 +50,8 @@ func newCocktailFilter(filter string) cocktailFilter {
 	}
 }
 
-// filterCocktailsById returns the given entity.Cocktail records filtered by the ID property.
-func filterCocktailsById(id int, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsById returns the given entity.Cocktail records filtered by the ID property.
+func cocktailsById(id int, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	for _, rec := range recs {
 		if id == rec.ID {
@@ -61,8 +61,8 @@ func filterCocktailsById(id int, recs []entity.Cocktail) []entity.Cocktail {
 	return cocktails
 }
 
-// filterCocktailsByName returns the given entity.Cocktail records filtered by the Name property.
-func filterCocktailsByName(name string, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsByName returns the given entity.Cocktail records filtered by the Name property.
+func cocktailsByName(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
 		return cocktails
@@ -78,8 +78,8 @@ func filterCocktailsByName(name string, recs []entity.Cocktail) []entity.Cocktai
 	return cocktails
 }
 
-// filterCocktailsByAlcoholic returns the given entity.Cocktail records filtered by the Alcoholic property.
-func filterCocktailsByAlcoholic(name string, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsByAlcoholic returns the given entity.Cocktail records filtered by the Alcoholic property.
+func cocktailsByAlcoholic(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
 		return cocktails
@@ -92,8 +92,8 @@ func filterCocktailsByAlcoholic(name string, recs []entity.Cocktail) []entity.Co
 	return cocktails
 }
 
-// filterCocktailsByCategory returns the given entity.Cocktail records filtered by the Category property.
-func filterCocktailsByCategory(name string, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsByCategory returns the given entity.Cocktail records filtered by the Category property.
+func cocktailsByCategory(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
 		return cocktails
@@ -109,8 +109,8 @@ func filterCocktailsByCategory(name string, recs []entity.Cocktail) []entity.Coc
 	return cocktails
 }
 
-// filterCocktailsByIngredient returns the entity.Cocktail records filtered by any ingredient included in the Ingredients list.
-func filterCocktailsByIngredient(name string, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsByIngredient returns the entity.Cocktail records filtered by any ingredient included in the Ingredients list.
+func cocktailsByIngredient(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
 		return cocktails
@@ -128,8 +128,8 @@ func filterCocktailsByIngredient(name string, recs []entity.Cocktail) []entity.C
 	return cocktails
 }
 
-// filterCocktailsByGlass returns the given entity.Cocktail records filtered by the Glass property.
-func filterCocktailsByGlass(name string, recs []entity.Cocktail) []entity.Cocktail {
+// cocktailsByGlass returns the given entity.Cocktail records filtered by the Glass property.
+func cocktailsByGlass(name string, recs []entity.Cocktail) []entity.Cocktail {
 	cocktails := make([]entity.Cocktail, 0)
 	if name == "" {
 		return cocktails

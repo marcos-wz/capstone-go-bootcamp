@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/config"
+	ct "github.com/marcos-wz/capstone-go-bootcamp/internal/customtype"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/entity"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/repository/mocks"
 
@@ -24,7 +25,21 @@ import (
 )
 
 var (
-	testCocktailRecs = []byte(`{
+	_ HttpClient = &mocks.HttpClient{}
+
+	testReadAllValid = []byte(`1,foo,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",foo instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
+2,bar,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",bar instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
+3,baz,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",baz instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
+`)
+
+	testReadCC = []byte(`17222,A1,Alcoholic,Cocktail,"[{""name"":""Gin"",""measure"":""1 3/4 shot ""},{""name"":""Grand Marnier"",""measure"":""1 Shot ""},{""name"":""Lemon Juice"",""measure"":""1/4 Shot""},{""name"":""Grenadine"",""measure"":""1/8 Shot""}]","Pour all ingredients into a cocktail shaker, mix and serve over ice into a chilled glass.",Cocktail glass,,,,,https://www.thecocktaildb.com/images/media/drink/2x8thr1504816928.jpg,,2017-09-07 21:42:09,2023-10-01 00:33:47,2023-10-01 00:33:47
+13501,ABC,Alcoholic,Shot,"[{""name"":""Amaretto"",""measure"":""1/3 ""},{""name"":""Baileys irish cream"",""measure"":""1/3 ""},{""name"":""Cognac"",""measure"":""1/3 ""}]",Layered in a shot glass.,Shot glass,,,,,https://www.thecocktaildb.com/images/media/drink/tqpvqp1472668328.jpg,,2016-08-31 19:32:08,2023-10-01 00:33:47,2023-10-01 00:33:47
+17225,Ace,Alcoholic,Cocktail,"[{""name"":""Gin"",""measure"":""2 shots ""},{""name"":""Grenadine"",""measure"":""1/2 shot ""},{""name"":""Heavy cream"",""measure"":""1/2 shot ""},{""name"":""Milk"",""measure"":""1/2 shot""},{""name"":""Egg White"",""measure"":""1/2 Fresh""}]",Shake all the ingredients in a cocktail shaker and ice then strain in a cold glass.,Martini Glass,,,,,https://www.thecocktaildb.com/images/media/drink/l3cd7f1504818306.jpg,,2017-09-07 22:05:06,2023-10-01 00:33:47,2023-10-01 00:33:47
+14610,ACID,Alcoholic,Shot,"[{""name"":""151 proof rum"",""measure"":""1 oz Bacardi ""},{""name"":""Wild Turkey"",""measure"":""1 oz ""}]",Poor in the 151 first followed by the 101 served with a Coke or Dr Pepper chaser.,Shot glass,,,,,https://www.thecocktaildb.com/images/media/drink/xuxpxt1479209317.jpg,,2016-11-15 11:28:37,2023-10-01 00:33:47,2023-10-01 00:33:47
+13938,AT&T,Alcoholic,Ordinary Drink,"[{""name"":""Absolut Vodka"",""measure"":""1 oz ""},{""name"":""Gin"",""measure"":""1 oz ""},{""name"":""Tonic water"",""measure"":""4 oz ""}]","Pour Vodka and Gin over ice, add Tonic and Stir",Highball Glass,,,,,https://www.thecocktaildb.com/images/media/drink/rhhwmp1493067619.jpg,,2017-04-24 22:00:19,2023-10-01 00:33:47,2023-10-01 00:33:47
+`)
+
+	testDrinkRecs = []byte(`{
     "drinks": [
         {
             "idDrink": "1",
@@ -188,7 +203,7 @@ var (
     ]
 }`)
 
-	testCocktailRecWithNoIngrs = []byte(`{
+	testDrinkRecsWithNoIngrs = []byte(`{
     "drinks": [
         {
             "idDrink": "1",
@@ -355,9 +370,7 @@ var (
 
 type CocktailTestSuite struct {
 	suite.Suite
-	workDir string
-	dataCSV []byte
-	data    []entity.Cocktail
+	workdir string
 }
 
 func TestCocktailTestSuite(t *testing.T) {
@@ -365,38 +378,27 @@ func TestCocktailTestSuite(t *testing.T) {
 }
 
 func (s *CocktailTestSuite) SetupSuite() {
-	workDir := "testdata"
-	if _, err := os.Stat(workDir); errors.Is(err, os.ErrNotExist) {
-		require.NoError(s.T(), os.Mkdir(workDir, os.ModePerm),
-			"create the work dataDir is mandatory")
+	workdir := "testdata"
+	if _, err := os.Stat(workdir); errors.Is(err, os.ErrNotExist) {
+		require.NoError(s.T(), os.Mkdir(workdir, os.ModePerm),
+			"create the work directory is mandatory")
 	} else {
 		require.Nil(s.T(), err)
 	}
-	s.workDir = workDir
-	s.dataCSV = []byte(`1,foo,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",foo instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
-2,bar,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",bar instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
-3,baz,,,"[{""name"":""fooIngr"",""measure"":""someMeasure""}]",baz instructions,,,,,,,,0001-01-01 00:00:00,0001-01-01 00:00:00,0001-01-01 00:00:00
-`)
-	s.data = []entity.Cocktail{
-		{ID: 1, Name: "foo", Instructions: "foo instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
-		{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
-		{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
-	}
+	s.workdir = workdir
 }
 
 func (s *CocktailTestSuite) TearDownSuite() {
-	assert.NoError(s.T(), os.RemoveAll(s.workDir),
-		"remove the work dataDir is mandatory")
+	assert.NoError(s.T(), os.RemoveAll(s.workdir),
+		"remove the work directory is mandatory")
 }
 
 func (s *CocktailTestSuite) TearDownTest() {
-	var count int
-	files, err := os.ReadDir(s.workDir)
+	files, err := os.ReadDir(s.workdir)
 	assert.Nil(s.T(), err)
 	for _, f := range files {
-		if err := os.RemoveAll(filepath.Join(s.workDir, f.Name())); err == nil {
-			count++
-		}
+		assert.NoError(s.T(), os.RemoveAll(filepath.Join(s.workdir, f.Name())),
+			"remove temporary test files is required")
 	}
 }
 
@@ -416,16 +418,16 @@ func (s *CocktailTestSuite) TestNewCocktail() {
 			name: "Invalid endpoint",
 			args: args{
 				dataAPI: config.NewDataAPI("https://foo.com/some-endpoint"),
-				csv:     config.NewCsv("foo.csv", s.workDir),
+				csv:     config.NewCsv("foo.csv", s.workdir),
 			},
 			exp: Cocktail{},
 			err: &DataApiErr{},
 		},
 		{
-			name: "Invalid data dataFile",
+			name: "Invalid data file",
 			args: args{
 				dataAPI: config.NewDataAPI("https://thecocktaildb.com/api/json/v1/1/search.php?f=a"),
-				csv:     config.NewCsv("", s.workDir),
+				csv:     config.NewCsv("", s.workdir),
 			},
 			exp: Cocktail{},
 			err: &CsvErr{},
@@ -434,11 +436,11 @@ func (s *CocktailTestSuite) TestNewCocktail() {
 			name: "Valid",
 			args: args{
 				dataAPI: config.NewDataAPI("https://thecocktaildb.com/api/json/v1/1/search.php?f=a"),
-				csv:     config.NewCsv("foo.csv", s.workDir),
+				csv:     config.NewCsv("foo.csv", s.workdir),
 			},
 			exp: Cocktail{
 				dataAPI: config.NewDataAPI("https://thecocktaildb.com/api/json/v1/1/search.php?f=a"),
-				csv:     config.NewCsv("foo.csv", s.workDir),
+				csv:     config.NewCsv("foo.csv", s.workdir),
 			},
 			err: nil,
 		},
@@ -494,17 +496,21 @@ func (s *CocktailTestSuite) TestReadAll() {
 			wantFile: true,
 		},
 		{
-			name:     "Valid",
-			exp:      s.data,
+			name: "Valid",
+			exp: []entity.Cocktail{
+				{ID: 1, Name: "foo", Instructions: "foo instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+			},
 			err:      nil,
-			file:     file{name: "cocktail_valid.csv", mode: dataFileMode, data: s.dataCSV},
+			file:     file{name: "cocktail_valid.csv", mode: dataFileMode, data: testReadAllValid},
 			wantFile: true,
 		},
 	}
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			csvCfg := config.NewCsv(tt.file.name, s.workDir)
+			csvCfg := config.NewCsv(tt.file.name, s.workdir)
 			if tt.wantFile {
 				require.NoError(t, os.WriteFile(csvCfg.FilePath(), tt.file.data, tt.file.mode),
 					fmt.Sprintf("create the test file %q is mandatory", csvCfg.FilePath()))
@@ -529,6 +535,125 @@ func (s *CocktailTestSuite) TestReadAll() {
 
 }
 
+func (s *CocktailTestSuite) TestReadCC() {
+	type file struct {
+		name string
+		mode os.FileMode
+		data []byte
+	}
+	type args struct {
+		nType   ct.NumberType
+		maxJobs int
+		jWorker int
+	}
+	tests := []struct {
+		name     string
+		file     file
+		args     args
+		exp      []entity.Cocktail
+		err      error
+		wantFile bool
+	}{
+		{
+			name:     "Invalid file",
+			file:     file{name: "cocktail_foo_cc.csv"},
+			args:     args{},
+			exp:      nil,
+			err:      &CsvErr{&fs.PathError{}},
+			wantFile: false,
+		},
+		{
+			name:     "Invalid number type",
+			file:     file{name: "cocktail_empty_cc.csv", mode: dataFileMode, data: testReadCC},
+			args:     args{nType: ct.InvalidNum, maxJobs: 10, jWorker: 2},
+			exp:      nil,
+			err:      &CsvErr{ErrWPInvalidArgs},
+			wantFile: true,
+		},
+		{
+			name:     "Max jobs zero",
+			file:     file{name: "cocktail_empty_cc.csv", mode: dataFileMode, data: testReadCC},
+			args:     args{nType: ct.EvenNum, maxJobs: 0, jWorker: 2},
+			exp:      nil,
+			err:      &CsvErr{ErrWPInvalidArgs},
+			wantFile: true,
+		},
+		{
+			name:     "Jobs per worker zero",
+			file:     file{name: "cocktail_empty_cc.csv", mode: dataFileMode, data: testReadCC},
+			args:     args{nType: ct.InvalidNum, maxJobs: 10, jWorker: 0},
+			exp:      nil,
+			err:      &CsvErr{ErrWPInvalidArgs},
+			wantFile: true,
+		},
+		{
+			name:     "Jobs per worker major than max jobs",
+			file:     file{name: "cocktail_empty_cc.csv", mode: dataFileMode, data: testReadCC},
+			args:     args{nType: ct.InvalidNum, maxJobs: 5, jWorker: 10},
+			exp:      nil,
+			err:      &CsvErr{ErrWPInvalidArgs},
+			wantFile: true,
+		},
+		{
+			name:     "Data Empty",
+			file:     file{name: "cocktail_empty_cc.csv", mode: dataFileMode, data: nil},
+			args:     args{nType: ct.EvenNum, maxJobs: 10, jWorker: 2},
+			exp:      []entity.Cocktail{},
+			err:      nil,
+			wantFile: true,
+		},
+		{
+			name: "Even",
+			file: file{name: "cocktail_even_cc.csv", mode: dataFileMode, data: testReadCC},
+			args: args{nType: ct.EvenNum, maxJobs: 8, jWorker: 4},
+			exp: []entity.Cocktail{
+				{ID: 17222, Name: "A1", Alcoholic: "Alcoholic", Category: "Cocktail", Ingredients: []entity.Ingredient{{Name: "Gin", Measure: "1 3/4 shot "}, {Name: "Grand Marnier", Measure: "1 Shot "}, {Name: "Lemon Juice", Measure: "1/4 Shot"}, {Name: "Grenadine", Measure: "1/8 Shot"}}, Instructions: "Pour all ingredients into a cocktail shaker, mix and serve over ice into a chilled glass.", Glass: "Cocktail glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/2x8thr1504816928.jpg", Video: "", SrcDate: time.Date(2017, time.September, 7, 21, 42, 9, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				{ID: 14610, Name: "ACID", Alcoholic: "Alcoholic", Category: "Shot", Ingredients: []entity.Ingredient{{Name: "151 proof rum", Measure: "1 oz Bacardi "}, {Name: "Wild Turkey", Measure: "1 oz "}}, Instructions: "Poor in the 151 first followed by the 101 served with a Coke or Dr Pepper chaser.", Glass: "Shot glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/xuxpxt1479209317.jpg", Video: "", SrcDate: time.Date(2016, time.November, 15, 11, 28, 37, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				{ID: 13938, Name: "AT&T", Alcoholic: "Alcoholic", Category: "Ordinary Drink", Ingredients: []entity.Ingredient{{Name: "Absolut Vodka", Measure: "1 oz "}, {Name: "Gin", Measure: "1 oz "}, {Name: "Tonic water", Measure: "4 oz "}}, Instructions: "Pour Vodka and Gin over ice, add Tonic and Stir", Glass: "Highball Glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/rhhwmp1493067619.jpg", Video: "", SrcDate: time.Date(2017, time.April, 24, 22, 0, 19, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)}},
+			err:      nil,
+			wantFile: true,
+		},
+		{
+			name: "Odd",
+			file: file{name: "cocktail_odd_cc.csv", mode: dataFileMode, data: testReadCC},
+			args: args{nType: ct.OddNum, maxJobs: 10, jWorker: 2},
+			exp: []entity.Cocktail{
+				{ID: 13501, Name: "ABC", Alcoholic: "Alcoholic", Category: "Shot", Ingredients: []entity.Ingredient{{Name: "Amaretto", Measure: "1/3 "}, {Name: "Baileys irish cream", Measure: "1/3 "}, {Name: "Cognac", Measure: "1/3 "}}, Instructions: "Layered in a shot glass.", Glass: "Shot glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/tqpvqp1472668328.jpg", Video: "", SrcDate: time.Date(2016, time.August, 31, 19, 32, 8, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				{ID: 17225, Name: "Ace", Alcoholic: "Alcoholic", Category: "Cocktail", Ingredients: []entity.Ingredient{{Name: "Gin", Measure: "2 shots "}, {Name: "Grenadine", Measure: "1/2 shot "}, {Name: "Heavy cream", Measure: "1/2 shot "}, {Name: "Milk", Measure: "1/2 shot"}, {Name: "Egg White", Measure: "1/2 Fresh"}}, Instructions: "Shake all the ingredients in a cocktail shaker and ice then strain in a cold glass.", Glass: "Martini Glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/l3cd7f1504818306.jpg", Video: "", SrcDate: time.Date(2017, time.September, 7, 22, 5, 6, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)}},
+			err:      nil,
+			wantFile: true,
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			csvCfg := config.NewCsv(tt.file.name, s.workdir)
+			if tt.wantFile {
+				require.NoError(t, os.WriteFile(csvCfg.FilePath(), tt.file.data, tt.file.mode),
+					fmt.Sprintf("create the test file %q is mandatory", csvCfg.FilePath()))
+			}
+			repo := Cocktail{csv: csvCfg}
+
+			out, err := repo.ReadCC(tt.args.nType, tt.args.maxJobs, tt.args.jWorker)
+			if tt.err != nil {
+				require.NotNil(t, err)
+				assert.Nil(t, out)
+				assert.IsType(t, tt.err, err)
+				if errWrp := errors.Unwrap(tt.err); errWrp != nil {
+					assert.IsType(t, errWrp, errors.Unwrap(err))
+				}
+				return
+			}
+			require.Nil(t, err)
+			assert.Len(t, tt.exp, len(out))
+			// this is a workaround because of the concurrency change the items order
+			for _, v := range tt.exp {
+				assert.Contains(t, out, v)
+			}
+		})
+	}
+}
+
 func (s *CocktailTestSuite) TestReplaceDB() {
 	type file struct {
 		name string
@@ -544,8 +669,12 @@ func (s *CocktailTestSuite) TestReplaceDB() {
 		wantFile bool
 	}{
 		{
-			name:     "Invalid CSV file",
-			args:     s.data,
+			name: "Invalid CSV file",
+			args: []entity.Cocktail{
+				{ID: 1, Name: "foo", Instructions: "foo instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+			},
 			exp:      nil,
 			err:      &CsvErr{&fs.PathError{}},
 			file:     file{name: "foo.csv"},
@@ -567,16 +696,24 @@ func (s *CocktailTestSuite) TestReplaceDB() {
 			wantFile: true,
 		},
 		{
-			name:     "Valid with no data",
-			file:     file{name: "create_valid_empty.csv", mode: dataFileMode, data: nil},
-			args:     s.data,
-			exp:      s.data,
+			name: "Valid with no data",
+			file: file{name: "create_valid_empty.csv", mode: dataFileMode, data: nil},
+			args: []entity.Cocktail{
+				{ID: 1, Name: "foo", Instructions: "foo instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+			},
+			exp: []entity.Cocktail{
+				{ID: 1, Name: "foo", Instructions: "foo instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+				{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
+			},
 			err:      nil,
 			wantFile: true,
 		},
 		{
 			name: "Valid with data",
-			file: file{name: "create_valid_full.csv", mode: dataFileMode, data: s.dataCSV},
+			file: file{name: "create_valid_full.csv", mode: dataFileMode, data: testReadAllValid},
 			args: []entity.Cocktail{
 				{ID: 2, Name: "bar", Instructions: "bar instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
 				{ID: 3, Name: "baz", Instructions: "baz instructions", Ingredients: []entity.Ingredient{{Name: "fooIngr", Measure: "someMeasure"}}},
@@ -592,14 +729,14 @@ func (s *CocktailTestSuite) TestReplaceDB() {
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			csvCfg := config.NewCsv(tt.file.name, s.workDir)
+			csvCfg := config.NewCsv(tt.file.name, s.workdir)
 			if tt.wantFile {
 				require.NoError(t, os.WriteFile(csvCfg.FilePath(), tt.file.data, tt.file.mode),
 					fmt.Sprintf("creation of the test file %q is mandatory", csvCfg.FilePath()))
 			}
 			repo := Cocktail{csv: csvCfg}
 
-			err := repo.ReplaceData(tt.args)
+			err := repo.ReplaceDB(tt.args)
 			if tt.err != nil {
 				require.NotNil(s.T(), err)
 				assert.IsType(t, tt.err, err)
@@ -707,7 +844,7 @@ func (s *CocktailTestSuite) TestFetchData() {
 			err: nil,
 			resp: resp{
 				code: http.StatusOK,
-				body: testCocktailRecWithNoIngrs,
+				body: testDrinkRecsWithNoIngrs,
 				err:  nil,
 			},
 		},
@@ -722,7 +859,7 @@ func (s *CocktailTestSuite) TestFetchData() {
 			err: nil,
 			resp: resp{
 				code: http.StatusOK,
-				body: testCocktailRecs,
+				body: testDrinkRecs,
 				err:  nil,
 			},
 		},
@@ -743,7 +880,7 @@ func (s *CocktailTestSuite) TestFetchData() {
 				httpClient: mClient,
 			}
 
-			out, err := repo.FetchData()
+			out, err := repo.Fetch()
 			if tt.err != nil {
 				require.NotNil(t, err)
 				assert.Nil(t, out)

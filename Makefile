@@ -10,14 +10,14 @@ test-service:
 
 # Test repository layer
 test-repository:
-	go test -count=1 ./internal/repository
+	go test --race -count=1 ./internal/repository
 
 # Test the clean architecture's layers: controller, service and repository.
 test-clean-architecture:test-controller test-service test-repository
 
 # Run all tests
 test-all:
-	go test -count=1 ./...
+	go test --race -count=1 ./...
 
 # Build the application
 build:

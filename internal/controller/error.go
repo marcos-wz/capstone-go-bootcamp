@@ -15,7 +15,9 @@ import (
 const (
 	repoCsvErrType     errType = "RepositoryCSVError"
 	repoDataApiErrType errType = "RepositoryDataAPIError"
+	repoWPErrType      errType = "RepositoryWorkerPoolError"
 	svcFilterErrType   errType = "ServiceFilterError"
+	svcArgsErrType     errType = "ServiceArgumentsError"
 )
 
 var _ fmt.Stringer = errType("")
@@ -48,6 +50,7 @@ func newErrHTTP(err error) errHTTP {
 		repoCsvErr     *repository.CsvErr
 		repoDataApiErr *repository.DataApiErr
 		svcFilterErr   *service.FilterErr
+		svcArgsErr     *service.ArgsErr
 	)
 
 	switch {
@@ -66,6 +69,12 @@ func newErrHTTP(err error) errHTTP {
 			ErrorType: repoDataApiErrType,
 			Message:   err.Error(),
 		}
+	case errors.Is(err, repository.ErrWPInvalidArgs):
+		return errHTTP{
+			Code:      http.StatusInternalServerError,
+			ErrorType: repoWPErrType,
+			Message:   err.Error(),
+		}
 
 	// ########### SERVICE ERRORS ###########
 
@@ -73,6 +82,12 @@ func newErrHTTP(err error) errHTTP {
 		return errHTTP{
 			Code:      http.StatusUnprocessableEntity,
 			ErrorType: svcFilterErrType,
+			Message:   err.Error(),
+		}
+	case errors.As(err, &svcArgsErr):
+		return errHTTP{
+			Code:      http.StatusUnprocessableEntity,
+			ErrorType: svcArgsErrType,
 			Message:   err.Error(),
 		}
 

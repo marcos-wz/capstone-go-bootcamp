@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"io"
 	"os"
 	"sync"
 
@@ -29,10 +28,10 @@ func Log() *zerolog.Logger {
 func newLogger() *logger {
 	var zlogger zerolog.Logger
 	once.Do(func() {
-		var writer io.Writer = zerolog.ConsoleWriter{
-			Out:        os.Stderr,
-			TimeFormat: "2006/01/02 15:04:05",
-		}
+		writer := zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
+			w.Out = os.Stderr
+			w.TimeFormat = "2006/01/02 15:04:05"
+		})
 
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		zlogger = zerolog.New(writer).

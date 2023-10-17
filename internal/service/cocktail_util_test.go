@@ -5,14 +5,11 @@ import (
 	"testing"
 
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/entity"
-	"github.com/marcos-wz/capstone-go-bootcamp/internal/service/mocks"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	_ CocktailRepo = &mocks.CocktailRepo{}
-
 	testRepoErr = errors.New("test repository error")
 
 	testCocktailsAll = []entity.Cocktail{
@@ -71,7 +68,7 @@ func TestNewCocktailFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := newCocktailFilter(tt.filter)
+			out := newCocktailFltr(tt.filter)
 			assert.IsType(t, cocktailFilter(""), out)
 			assert.Equal(t, tt.exp, out)
 		})

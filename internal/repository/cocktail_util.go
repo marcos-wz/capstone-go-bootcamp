@@ -1,38 +1,44 @@
 package repository
 
 import (
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	ct "github.com/marcos-wz/capstone-go-bootcamp/internal/customtype"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/entity"
 	"github.com/marcos-wz/capstone-go-bootcamp/internal/logger"
 )
 
-// Indexes of the entity.Cocktail fields related the specific column in the CSV dataFile.
+// The indexes of the cocktail fields regarding the specific column in the CSV file.
 const (
-	idIdx             csvColumn = 0
-	nameIdx           csvColumn = 1
-	alcoholicIdx      csvColumn = 2
-	categoryIdx       csvColumn = 3
-	ingredientsIdx    csvColumn = 4
-	instructionsIdx   csvColumn = 5
-	glassIdx          csvColumn = 6
-	ibaIdx            csvColumn = 7
-	imgAttributionIdx csvColumn = 8
-	imgSrcIdx         csvColumn = 9
-	tagsIdx           csvColumn = 10
-	thumbIdx          csvColumn = 11
-	videoIdx          csvColumn = 12
-	srcDateIdx        csvColumn = 13
-	createdAtIdx      csvColumn = 14
-	updatedAtIdx      csvColumn = 15
+	idIdx             csvColIdx = 0
+	nameIdx           csvColIdx = 1
+	alcoholicIdx      csvColIdx = 2
+	categoryIdx       csvColIdx = 3
+	ingredientsIdx    csvColIdx = 4
+	instructionsIdx   csvColIdx = 5
+	glassIdx          csvColIdx = 6
+	ibaIdx            csvColIdx = 7
+	imgAttributionIdx csvColIdx = 8
+	imgSrcIdx         csvColIdx = 9
+	tagsIdx           csvColIdx = 10
+	thumbIdx          csvColIdx = 11
+	videoIdx          csvColIdx = 12
+	srcDateIdx        csvColIdx = 13
+	createdAtIdx      csvColIdx = 14
+	updatedAtIdx      csvColIdx = 15
 )
 
 // csvHeadersMap are the names of the fields used in the headers/columns of the CSV file
-var csvHeadersMap = map[csvColumn]string{
+var csvHeadersMap = map[csvColIdx]string{
 	idIdx:             "id",
 	nameIdx:           "name",
 	alcoholicIdx:      "alcoholic",
@@ -51,10 +57,128 @@ var csvHeadersMap = map[csvColumn]string{
 	updatedAtIdx:      "updated_at",
 }
 
-// csvColumn represents the column's index of the csv file.
-type csvColumn int
+// csvColIdx represents the column's position in the csv file.
+type csvColIdx int
 
-// drink represents the json record provided by the public API.
+// cocktailCsvRec represents a cocktail record of type CSV
+type cocktailCsvRec []string
+
+// parse returns a valid entity.Cocktail instance.
+func (cr cocktailCsvRec) parse() (entity.Cocktail, error) {
+	if len(cr) == 0 {
+		return entity.Cocktail{}, ErrCSVRecEmpty
+	}
+
+	numFields := len(csvHeadersMap)
+	if len(cr) != numFields {
+		logger.Log().Warn().Str("required", fmt.Sprintf("%d/%d", len(cr), numFields)).Str("record", strings.Join(cr[:], ",")).
+			Msg("parse: wrong number of fields")
+	}
+
+	// Preallocate a csv record matching the number of fields to avoid nil errors.
+	rec := make([]string, numFields)
+	copy(rec, cr)
+
+	recID, err := strconv.Atoi(rec[idIdx])
+	if err != nil {
+		logger.Log().Error().Err(err).Str("id", rec[idIdx]).
+			Msgf("parse: ID failure")
+		return entity.Cocktail{}, err
+	}
+
+	if rec[nameIdx] == "" {
+		logger.Log().Error().Err(ErrCocktailNameEmpty).Str("name", rec[nameIdx]).
+			Msgf("parse: Name failure")
+		return entity.Cocktail{}, ErrCocktailNameEmpty
+	}
+
+	var ingredients []entity.Ingredient
+	if err := json.Unmarshal([]byte(rec[ingredientsIdx]), &ingredients); err != nil {
+		logger.Log().Error().Err(err).Str("ingredients", rec[ingredientsIdx]).
+			Msgf("parse: unmarshalling Ingredients failure")
+		return entity.Cocktail{}, err
+	}
+	if len(ingredients) == 0 {
+		logger.Log().Error().Err(ErrCocktailIngredientsEmpty).Str("ingredients", rec[ingredientsIdx]).
+			Msgf("parse: Ingredients failure")
+		return entity.Cocktail{}, ErrCocktailIngredientsEmpty
+	}
+
+	if rec[instructionsIdx] == "" {
+		logger.Log().Error().Err(ErrCocktailInstructionsEmpty).Str("name", rec[instructionsIdx]).
+			Msgf("parse: Instructions failure")
+		return entity.Cocktail{}, ErrCocktailInstructionsEmpty
+	}
+
+	srcDate, err := time.Parse(time.DateTime, rec[srcDateIdx])
+	if err != nil {
+		logger.Log().Error().Err(err).Str("source_date", rec[srcDateIdx]).
+			Msgf("parse: Source Date failure")
+		return entity.Cocktail{}, err
+	}
+
+	createdAt, err := time.Parse(time.DateTime, rec[createdAtIdx])
+	if err != nil {
+		logger.Log().Error().Err(err).Str("created_at", rec[createdAtIdx]).
+			Msgf("parse: Created At failure")
+		return entity.Cocktail{}, err
+	}
+
+	updatedAt, err := time.Parse(time.DateTime, rec[updatedAtIdx])
+	if err != nil {
+		logger.Log().Error().Err(err).Str("updated_at", rec[updatedAtIdx]).
+			Msgf("parse: Updated At failure")
+		return entity.Cocktail{}, err
+	}
+
+	return entity.Cocktail{
+		ID:             recID,
+		Name:           rec[nameIdx],
+		Alcoholic:      rec[alcoholicIdx],
+		Category:       rec[categoryIdx],
+		Instructions:   rec[instructionsIdx],
+		Ingredients:    ingredients,
+		Glass:          rec[glassIdx],
+		IBA:            rec[ibaIdx],
+		ImgAttribution: rec[imgAttributionIdx],
+		ImgSrc:         rec[imgSrcIdx],
+		Tags:           rec[tagsIdx],
+		Thumb:          rec[thumbIdx],
+		Video:          rec[videoIdx],
+		SrcDate:        srcDate,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
+	}, nil
+}
+
+// parseCsvRec returns a valid csv record from the given entity.Cocktail.
+func parseCsvRec(c entity.Cocktail) ([]string, error) {
+	ingredients, err := json.Marshal(c.Ingredients)
+	if err != nil {
+		return nil, err
+	}
+
+	rec := make([]string, len(csvHeadersMap))
+	rec[idIdx] = strconv.Itoa(c.ID)
+	rec[nameIdx] = c.Name
+	rec[alcoholicIdx] = c.Alcoholic
+	rec[categoryIdx] = c.Category
+	rec[ingredientsIdx] = string(ingredients)
+	rec[instructionsIdx] = c.Instructions
+	rec[glassIdx] = c.Glass
+	rec[ibaIdx] = c.IBA
+	rec[imgAttributionIdx] = c.ImgAttribution
+	rec[imgSrcIdx] = c.ImgSrc
+	rec[tagsIdx] = c.Tags
+	rec[thumbIdx] = c.Thumb
+	rec[videoIdx] = c.Video
+	rec[srcDateIdx] = c.SrcDate.Format(time.DateTime)
+	rec[createdAtIdx] = c.CreatedAt.Format(time.DateTime)
+	rec[updatedAtIdx] = c.UpdatedAt.Format(time.DateTime)
+	return rec, nil
+}
+
+// drink represents the fetched JSON record from the public API.
 type drink struct {
 	Alcoholic        string `json:"strAlcoholic"`
 	Category         string `json:"strCategory"`
@@ -102,224 +226,210 @@ type drink struct {
 	Video            string `json:"strVideo"`
 }
 
-// extCocktails holds all the json records provided by the public API.
-type extCocktails struct {
+// drinksData holds all the fetched drink records from the data API.
+type drinksData struct {
 	Drinks []drink `json:"drinks"`
 }
 
 // getIngredients returns a valid entity.Ingredient list
-func (c drink) getIngredients() []entity.Ingredient {
+func (d drink) getIngredients() []entity.Ingredient {
 	ingredients := make([]entity.Ingredient, 0)
 
-	if c.Ingredient1 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient1, Measure: c.Measure1})
+	if d.Ingredient1 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient1, Measure: d.Measure1})
 	}
-	if c.Ingredient2 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient2, Measure: c.Measure2})
+	if d.Ingredient2 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient2, Measure: d.Measure2})
 	}
-	if c.Ingredient3 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient3, Measure: c.Measure3})
+	if d.Ingredient3 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient3, Measure: d.Measure3})
 	}
-	if c.Ingredient4 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient4, Measure: c.Measure4})
+	if d.Ingredient4 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient4, Measure: d.Measure4})
 	}
-	if c.Ingredient5 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient5, Measure: c.Measure5})
+	if d.Ingredient5 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient5, Measure: d.Measure5})
 	}
-	if c.Ingredient6 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient6, Measure: c.Measure6})
+	if d.Ingredient6 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient6, Measure: d.Measure6})
 	}
-	if c.Ingredient7 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient7, Measure: c.Measure7})
+	if d.Ingredient7 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient7, Measure: d.Measure7})
 	}
-	if c.Ingredient8 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient8, Measure: c.Measure8})
+	if d.Ingredient8 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient8, Measure: d.Measure8})
 	}
-	if c.Ingredient9 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient9, Measure: c.Measure9})
+	if d.Ingredient9 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient9, Measure: d.Measure9})
 	}
-	if c.Ingredient10 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient10, Measure: c.Measure10})
+	if d.Ingredient10 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient10, Measure: d.Measure10})
 	}
-	if c.Ingredient11 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient11, Measure: c.Measure11})
+	if d.Ingredient11 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient11, Measure: d.Measure11})
 	}
-	if c.Ingredient12 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient12, Measure: c.Measure12})
+	if d.Ingredient12 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient12, Measure: d.Measure12})
 	}
-	if c.Ingredient13 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient13, Measure: c.Measure13})
+	if d.Ingredient13 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient13, Measure: d.Measure13})
 	}
-	if c.Ingredient14 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient14, Measure: c.Measure14})
+	if d.Ingredient14 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient14, Measure: d.Measure14})
 	}
-	if c.Ingredient15 != "" {
-		ingredients = append(ingredients, entity.Ingredient{Name: c.Ingredient15, Measure: c.Measure15})
+	if d.Ingredient15 != "" {
+		ingredients = append(ingredients, entity.Ingredient{Name: d.Ingredient15, Measure: d.Measure15})
 	}
 	return ingredients
 }
 
-// parseCocktail returns a valid entity.Cocktail instance
-func (c drink) parseCocktail() (entity.Cocktail, error) {
-	if c == (drink{}) {
+// parse returns a valid entity.Cocktail instance
+func (d drink) parse() (entity.Cocktail, error) {
+	if d == (drink{}) {
 		return entity.Cocktail{}, ErrJsonRecEmpty
 	}
 
-	id, err := strconv.Atoi(c.DrinkId)
+	id, err := strconv.Atoi(d.DrinkId)
 	if err != nil {
+		logger.Log().Error().Err(err).Str("id", d.DrinkId).Msgf("parse: ID failure")
 		return entity.Cocktail{}, err
 	}
 
-	if c.DrinkName == "" {
+	if d.DrinkName == "" {
+		logger.Log().Error().Err(ErrCocktailNameEmpty).Msgf("parse: Name failure")
 		return entity.Cocktail{}, ErrCocktailNameEmpty
 	}
 
-	if c.Instructions == "" {
+	if d.Instructions == "" {
+		logger.Log().Error().Err(ErrCocktailInstructionsEmpty).Msgf("parse: Instructions failure")
 		return entity.Cocktail{}, ErrCocktailInstructionsEmpty
 	}
 
-	ingredients := c.getIngredients()
+	ingredients := d.getIngredients()
 	if len(ingredients) == 0 {
+		logger.Log().Error().Err(ErrCocktailIngredientsEmpty).Msgf("parse: Ingredients failure")
 		return entity.Cocktail{}, ErrCocktailIngredientsEmpty
 	}
 
-	srcDate, err := time.Parse(time.DateTime, c.DateModified)
+	srcDate, err := time.Parse(time.DateTime, d.DateModified)
 	if err != nil {
+		logger.Log().Error().Err(err).Msgf("parse: Source Date failure")
 		return entity.Cocktail{}, err
 	}
 
 	return entity.Cocktail{
 		ID:             id,
-		Name:           c.DrinkName,
-		Alcoholic:      c.Alcoholic,
-		Category:       c.Category,
+		Name:           d.DrinkName,
+		Alcoholic:      d.Alcoholic,
+		Category:       d.Category,
 		Ingredients:    ingredients,
-		Instructions:   c.Instructions,
-		Glass:          c.Glass,
-		IBA:            c.IBA,
-		ImgAttribution: c.ImageAttribution,
-		ImgSrc:         c.ImageSource,
-		Tags:           c.Tags,
-		Thumb:          c.DrinkThumb,
-		Video:          c.Video,
+		Instructions:   d.Instructions,
+		Glass:          d.Glass,
+		IBA:            d.IBA,
+		ImgAttribution: d.ImageAttribution,
+		ImgSrc:         d.ImageSource,
+		Tags:           d.Tags,
+		Thumb:          d.DrinkThumb,
+		Video:          d.Video,
 		SrcDate:        srcDate,
 	}, nil
 }
 
-// cocktailCSVRec represents a cocktail csv record
-type cocktailCSVRec []string
+// workerPool represents the Worker Pool pattern.
+type workerPool struct {
+	nType      ct.NumberType
+	maxJobs    int
+	maxWorkers int
+	jobsWorker int
+	resp       []entity.Cocktail
+	jobs       chan cocktailCsvRec
+	results    chan entity.Cocktail
+}
 
-// parseCocktail returns a valid entity.Cocktail instance.
-func (record cocktailCSVRec) parseCocktail() (entity.Cocktail, error) {
-	if len(record) == 0 {
-		return entity.Cocktail{}, ErrCSVRecEmpty
+// newWorkerPool returns a new workerPool implementation.
+func newWorkerPool(nType ct.NumberType, maxJobs, jobsWorker int) (workerPool, error) {
+	if nType == ct.InvalidNum || maxJobs == 0 || jobsWorker == 0 || jobsWorker > maxJobs {
+		return workerPool{}, ErrWPInvalidArgs
 	}
-
-	numFields := len(csvHeadersMap)
-	if len(record) != numFields {
-		logger.Log().Warn().Str("required", fmt.Sprintf("%d/%d", len(record), numFields)).Str("record", strings.Join(record[:], ",")).
-			Msg("newCocktailFromCSVRec: wrong number of fields")
-	}
-
-	// Preallocate a csv record matching the number of entity.Cocktail fields to avoid nil errors.
-	rec := make([]string, numFields)
-	copy(rec, record)
-
-	recID, err := strconv.Atoi(rec[idIdx])
-	if err != nil {
-		logger.Log().Error().Err(err).Str("id", rec[idIdx]).
-			Msgf("newCocktailFromCSVRec: parsing id failure")
-		return entity.Cocktail{}, err
-	}
-
-	if rec[nameIdx] == "" {
-		logger.Log().Error().Err(ErrCocktailNameEmpty).Str("name", rec[nameIdx]).
-			Msgf("newCocktailFromCSVRec: parsing name failure")
-		return entity.Cocktail{}, ErrCocktailNameEmpty
-	}
-
-	var ingredients []entity.Ingredient
-	if err := json.Unmarshal([]byte(rec[ingredientsIdx]), &ingredients); err != nil {
-		logger.Log().Error().Err(err).Str("ingredients", rec[ingredientsIdx]).
-			Msgf("newCocktailFromCSVRec: unmarshalling ingredients failure")
-		return entity.Cocktail{}, err
-	}
-	if len(ingredients) == 0 {
-		logger.Log().Error().Err(ErrCocktailIngredientsEmpty).Str("ingredients", rec[ingredientsIdx]).
-			Msgf("newCocktailFromCSVRec: parsing ingredients failure")
-		return entity.Cocktail{}, ErrCocktailIngredientsEmpty
-	}
-
-	if rec[instructionsIdx] == "" {
-		logger.Log().Error().Err(ErrCocktailInstructionsEmpty).Str("name", rec[instructionsIdx]).
-			Msgf("newCocktailFromCSVRec: parsing instructions failure")
-		return entity.Cocktail{}, ErrCocktailInstructionsEmpty
-	}
-
-	srcDate, err := time.Parse(time.DateTime, rec[srcDateIdx])
-	if err != nil {
-		logger.Log().Error().Err(err).Str("source_date", rec[srcDateIdx]).
-			Msgf("newCocktailFromCSVRec: parsing source date failure")
-		return entity.Cocktail{}, err
-	}
-
-	createdAt, err := time.Parse(time.DateTime, rec[createdAtIdx])
-	if err != nil {
-		logger.Log().Error().Err(err).Str("created_at", rec[createdAtIdx]).
-			Msgf("newCocktailFromCSVRec: parsing created_at failure")
-		return entity.Cocktail{}, err
-	}
-
-	updatedAt, err := time.Parse(time.DateTime, rec[updatedAtIdx])
-	if err != nil {
-		logger.Log().Error().Err(err).Str("updated_at", rec[updatedAtIdx]).
-			Msgf("newCocktailFromCSVRec: parsing updated_at failure")
-		return entity.Cocktail{}, err
-	}
-
-	return entity.Cocktail{
-		ID:             recID,
-		Name:           rec[nameIdx],
-		Alcoholic:      rec[alcoholicIdx],
-		Category:       rec[categoryIdx],
-		Instructions:   rec[instructionsIdx],
-		Ingredients:    ingredients,
-		Glass:          rec[glassIdx],
-		IBA:            rec[ibaIdx],
-		ImgAttribution: rec[imgAttributionIdx],
-		ImgSrc:         rec[imgSrcIdx],
-		Tags:           rec[tagsIdx],
-		Thumb:          rec[thumbIdx],
-		Video:          rec[videoIdx],
-		SrcDate:        srcDate,
-		CreatedAt:      createdAt,
-		UpdatedAt:      updatedAt,
+	maxWorkers := int(
+		math.Ceil(float64(maxJobs) / float64(jobsWorker)),
+	)
+	return workerPool{
+		nType:      nType,
+		maxJobs:    maxJobs,
+		maxWorkers: maxWorkers,
+		jobsWorker: jobsWorker,
+		resp:       make([]entity.Cocktail, 0),
+		jobs:       make(chan cocktailCsvRec, maxJobs),
+		results:    make(chan entity.Cocktail, maxJobs),
 	}, nil
 }
 
-// parseCocktailCsvRec returns a valid csv record from an entity.Cocktail
-func parseCocktailCsvRec(c entity.Cocktail) ([]string, error) {
-	ingredients, err := json.Marshal(c.Ingredients)
-	if err != nil {
-		return nil, err
+// runWorkers starts the workers and dispatches jobs to workers.
+// It waits for all workers to finish and then closes the results channel
+func (wp *workerPool) runWorkers() {
+	wg := new(sync.WaitGroup)
+	for i := 1; i <= wp.maxWorkers; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			wp.worker(id)
+		}(i)
+	}
+	go func() {
+		wg.Wait()
+		close(wp.results)
+	}()
+}
+
+// producer reads a valid csv record and send it to the jobs queue.
+// If reach the end of file, stop sending jobs.
+// Any bad record is skipped.
+func (wp *workerPool) producer(r *csv.Reader) {
+	go func() {
+		for i := 0; i < wp.maxJobs; {
+			rec, err := r.Read()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				logger.Log().Warn().Err(err).Msgf("producer: read csv record failed, skipped")
+				continue
+			}
+			wp.jobs <- rec
+			i++
+		}
+		close(wp.jobs)
+	}()
+}
+
+// consumer receives a valid response from results queue and add it to the responses list.
+func (wp *workerPool) consumer() {
+	for i := 0; i < wp.maxJobs; i++ {
+		resp, open := <-wp.results
+		if !open {
+			break
+		}
+		wp.resp = append(wp.resp, resp)
+	}
+}
+
+// worker processes jobs from queue and send them to the results queue
+func (wp *workerPool) worker(id int) {
+	for i := 0; i < wp.jobsWorker; i++ {
+		job, open := <-wp.jobs
+		if !open {
+			break
+		}
+		resp, err := job.parse()
+		if err != nil {
+			logger.Log().Error().Err(err).Str("record", strings.Join(job[:], ",")).
+				Msgf("worker(%d): parsing record failed, skipped.", id)
+			continue
+		}
+		if validNumType(resp.ID, wp.nType) {
+			wp.results <- resp
+		}
 	}
 
-	rec := make([]string, len(csvHeadersMap))
-	rec[idIdx] = strconv.Itoa(c.ID)
-	rec[nameIdx] = c.Name
-	rec[alcoholicIdx] = c.Alcoholic
-	rec[categoryIdx] = c.Category
-	rec[ingredientsIdx] = string(ingredients)
-	rec[instructionsIdx] = c.Instructions
-	rec[glassIdx] = c.Glass
-	rec[ibaIdx] = c.IBA
-	rec[imgAttributionIdx] = c.ImgAttribution
-	rec[imgSrcIdx] = c.ImgSrc
-	rec[tagsIdx] = c.Tags
-	rec[thumbIdx] = c.Thumb
-	rec[videoIdx] = c.Video
-	rec[srcDateIdx] = c.SrcDate.Format(time.DateTime)
-	rec[createdAtIdx] = c.CreatedAt.Format(time.DateTime)
-	rec[updatedAtIdx] = c.UpdatedAt.Format(time.DateTime)
-	return rec, nil
 }

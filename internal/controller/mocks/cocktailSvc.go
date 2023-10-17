@@ -24,6 +24,12 @@ func (o *CocktailSvc) GetAll() ([]entity.Cocktail, error) {
 	return args.Get(0).([]entity.Cocktail), args.Error(1)
 }
 
+// GetCC provides a mock function with given fields:
+func (o *CocktailSvc) GetCC(nType, jobs, jWorker string) ([]entity.Cocktail, error) {
+	args := o.Called(nType, jobs, jWorker)
+	return args.Get(0).([]entity.Cocktail), args.Error(1)
+}
+
 // UpdateDB provides a mock function with given fields:
 func (o *CocktailSvc) UpdateDB() (ct.DBOpsSummary, error) {
 	args := o.Called()

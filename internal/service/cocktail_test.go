@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var _ CocktailRepo = &mocks.CocktailRepo{}
 
 func TestNewCocktail(t *testing.T) {
 	repo := mocks.NewCocktailRepo()
@@ -57,14 +58,14 @@ func TestCocktail_GetFiltered(t *testing.T) {
 				value:  "",
 			},
 			exp:  nil,
-			err:  &FilterErr{ErrFltrValueEmpty},
+			err:  ErrFltrValueEmpty,
 			repo: repo{},
 		},
 		{
 			name: "Arbitrary",
 			args: args{filter: "foo", value: "foo-value"},
 			exp:  nil,
-			err:  &FilterErr{ErrFltrInvalid},
+			err:  ErrFltrInvalid,
 			repo: repo{},
 		},
 		{
@@ -81,7 +82,7 @@ func TestCocktail_GetFiltered(t *testing.T) {
 			name: "Bad ID",
 			args: args{filter: idFltr.String(), value: "foo-id"},
 			exp:  []entity.Cocktail{},
-			err:  &FilterErr{&strconv.NumError{}},
+			err:  strconv.ErrSyntax,
 			repo: repo{
 				resp: testCocktailsAll,
 				err:  nil,
@@ -175,10 +176,7 @@ func TestCocktail_GetFiltered(t *testing.T) {
 			if tt.err != nil {
 				require.NotNil(t, err)
 				require.Nil(t, out)
-				assert.IsType(t, tt.err, err)
-				if errW := errors.Unwrap(tt.err); errW != nil {
-					assert.IsType(t, errW, errors.Unwrap(err))
-				}
+				assert.ErrorIs(t, err, tt.err)
 				return
 			}
 			require.Nil(t, err)
@@ -195,11 +193,10 @@ func TestCocktail_GetAll(t *testing.T) {
 		err  error
 	}
 	tests := []struct {
-		name    string
-		exp     []entity.Cocktail
-		err     error
-		repo    repo
-		wantErr bool
+		name string
+		exp  []entity.Cocktail
+		err  error
+		repo repo
 	}{
 		{
 			name: "Repository Error",
@@ -209,7 +206,6 @@ func TestCocktail_GetAll(t *testing.T) {
 				resp: nil,
 				err:  testRepoErr,
 			},
-			wantErr: true,
 		},
 		{
 			name: "Not Found",
@@ -219,7 +215,6 @@ func TestCocktail_GetAll(t *testing.T) {
 				resp: []entity.Cocktail{},
 				err:  nil,
 			},
-			wantErr: false,
 		},
 		{
 			name: "All records",
@@ -229,7 +224,6 @@ func TestCocktail_GetAll(t *testing.T) {
 				resp: testCocktailsAll,
 				err:  nil,
 			},
-			wantErr: false,
 		},
 	}
 
@@ -241,10 +235,130 @@ func TestCocktail_GetAll(t *testing.T) {
 			require.NotNil(t, svc)
 
 			out, err := svc.GetAll()
-			if tt.wantErr {
+			if tt.err != nil {
 				require.NotNil(t, err)
 				assert.Nil(t, out)
-				assert.IsType(t, tt.err, err)
+				assert.ErrorIs(t, err, tt.err)
+				return
+			}
+			require.Nil(t, err)
+			require.NotNil(t, out)
+			assert.Len(t, tt.exp, len(out))
+			assert.Equal(t, tt.exp, out)
+		})
+	}
+}
+
+func TestCocktail_GetCC(t *testing.T) {
+	type repoArgs struct {
+		nType   ct.NumberType
+		jobs    int
+		jWorker int
+	}
+	type repo struct {
+		args repoArgs
+		resp []entity.Cocktail
+		err  error
+	}
+	type args struct {
+		nType   string
+		jobs    string
+		jWorker string
+	}
+	tests := []struct {
+		name string
+		args args
+		exp  []entity.Cocktail
+		err  error
+		repo repo
+	}{
+		{
+			name: "Repository Error",
+			args: args{nType: "even", jobs: "10", jWorker: "2"},
+			exp:  nil,
+			err:  testRepoErr,
+			repo: repo{
+				args: repoArgs{nType: ct.EvenNum, jobs: 10, jWorker: 2},
+				resp: nil,
+				err:  testRepoErr,
+			},
+		},
+		{
+			name: "Invalid number type",
+			args: args{nType: "foo", jobs: "10", jWorker: "2"},
+			exp:  nil,
+			err:  ErrInvalidNumType,
+			repo: repo{},
+		},
+		{
+			name: "Invalid jobs",
+			args: args{nType: "even", jobs: "bad-num", jWorker: "2"},
+			exp:  nil,
+			err:  strconv.ErrSyntax,
+			repo: repo{},
+		},
+		{
+			name: "Invalid jobs per worker",
+			args: args{nType: "even", jobs: "10", jWorker: "bad-num"},
+			exp:  nil,
+			err:  strconv.ErrSyntax,
+			repo: repo{},
+		},
+		{
+			name: "Zero jobs",
+			args: args{nType: "odd", jobs: "0", jWorker: "2"},
+			exp:  nil,
+			err:  ErrZeroValue,
+			repo: repo{},
+		},
+		{
+			name: "Zero Jobs per worker",
+			args: args{nType: "odd", jobs: "2", jWorker: "0"},
+			exp:  nil,
+			err:  ErrZeroValue,
+			repo: repo{},
+		},
+		{
+			name: "Jobs per worker higher",
+			args: args{nType: "odd", jobs: "2", jWorker: "10"},
+			exp:  nil,
+			err:  ErrJobsWorkerHigher,
+			repo: repo{},
+		},
+		{
+			name: "Valid",
+			args: args{nType: "even", jobs: "8", jWorker: "2"},
+			exp: []entity.Cocktail{
+				{ID: 17222, Name: "A1", Alcoholic: "Alcoholic", Category: "Cocktail", Ingredients: []entity.Ingredient{{Name: "Gin", Measure: "1 3/4 shot "}, {Name: "Grand Marnier", Measure: "1 Shot "}, {Name: "Lemon Juice", Measure: "1/4 Shot"}, {Name: "Grenadine", Measure: "1/8 Shot"}}, Instructions: "Pour all ingredients into a cocktail shaker, mix and serve over ice into a chilled glass.", Glass: "Cocktail glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/2x8thr1504816928.jpg", Video: "", SrcDate: time.Date(2017, time.September, 7, 21, 42, 9, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				{ID: 14610, Name: "ACID", Alcoholic: "Alcoholic", Category: "Shot", Ingredients: []entity.Ingredient{{Name: "151 proof rum", Measure: "1 oz Bacardi "}, {Name: "Wild Turkey", Measure: "1 oz "}}, Instructions: "Poor in the 151 first followed by the 101 served with a Coke or Dr Pepper chaser.", Glass: "Shot glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/xuxpxt1479209317.jpg", Video: "", SrcDate: time.Date(2016, time.November, 15, 11, 28, 37, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				{ID: 13938, Name: "AT&T", Alcoholic: "Alcoholic", Category: "Ordinary Drink", Ingredients: []entity.Ingredient{{Name: "Absolut Vodka", Measure: "1 oz "}, {Name: "Gin", Measure: "1 oz "}, {Name: "Tonic water", Measure: "4 oz "}}, Instructions: "Pour Vodka and Gin over ice, add Tonic and Stir", Glass: "Highball Glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/rhhwmp1493067619.jpg", Video: "", SrcDate: time.Date(2017, time.April, 24, 22, 0, 19, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+			},
+			err: nil,
+			repo: repo{
+				args: repoArgs{nType: ct.EvenNum, jobs: 8, jWorker: 2},
+				resp: []entity.Cocktail{
+					{ID: 17222, Name: "A1", Alcoholic: "Alcoholic", Category: "Cocktail", Ingredients: []entity.Ingredient{{Name: "Gin", Measure: "1 3/4 shot "}, {Name: "Grand Marnier", Measure: "1 Shot "}, {Name: "Lemon Juice", Measure: "1/4 Shot"}, {Name: "Grenadine", Measure: "1/8 Shot"}}, Instructions: "Pour all ingredients into a cocktail shaker, mix and serve over ice into a chilled glass.", Glass: "Cocktail glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/2x8thr1504816928.jpg", Video: "", SrcDate: time.Date(2017, time.September, 7, 21, 42, 9, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+					{ID: 14610, Name: "ACID", Alcoholic: "Alcoholic", Category: "Shot", Ingredients: []entity.Ingredient{{Name: "151 proof rum", Measure: "1 oz Bacardi "}, {Name: "Wild Turkey", Measure: "1 oz "}}, Instructions: "Poor in the 151 first followed by the 101 served with a Coke or Dr Pepper chaser.", Glass: "Shot glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/xuxpxt1479209317.jpg", Video: "", SrcDate: time.Date(2016, time.November, 15, 11, 28, 37, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+					{ID: 13938, Name: "AT&T", Alcoholic: "Alcoholic", Category: "Ordinary Drink", Ingredients: []entity.Ingredient{{Name: "Absolut Vodka", Measure: "1 oz "}, {Name: "Gin", Measure: "1 oz "}, {Name: "Tonic water", Measure: "4 oz "}}, Instructions: "Pour Vodka and Gin over ice, add Tonic and Stir", Glass: "Highball Glass", IBA: "", ImgAttribution: "", ImgSrc: "", Tags: "", Thumb: "https://www.thecocktaildb.com/images/media/drink/rhhwmp1493067619.jpg", Video: "", SrcDate: time.Date(2017, time.April, 24, 22, 0, 19, 0, time.UTC), CreatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC), UpdatedAt: time.Date(2023, time.October, 1, 0, 33, 47, 0, time.UTC)},
+				},
+				err: nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mRepo := mocks.NewCocktailRepo()
+			mRepo.On("ReadCC", tt.repo.args.nType, tt.repo.args.jobs, tt.repo.args.jWorker).
+				Return(tt.repo.resp, tt.repo.err)
+			svc := NewCocktail(mRepo)
+			require.NotNil(t, svc)
+
+			out, err := svc.GetCC(tt.args.nType, tt.args.jobs, tt.args.jWorker)
+			if tt.err != nil {
+				require.NotNil(t, err)
+				assert.Nil(t, out)
+				assert.ErrorIs(t, err, tt.err)
 				return
 			}
 			require.Nil(t, err)
@@ -265,11 +379,10 @@ func TestCocktail_UpdateDB(t *testing.T) {
 		readErr   error
 	}
 	tests := []struct {
-		name    string
-		repo    repo
-		exp     ct.DBOpsSummary
-		err     error
-		wantErr bool
+		name string
+		repo repo
+		exp  ct.DBOpsSummary
+		err  error
 	}{
 		{
 			name: "Read All error",
@@ -277,9 +390,8 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				readResp: nil,
 				readErr:  testRepoErr,
 			},
-			exp:     ct.DBOpsSummary{},
-			err:     testRepoErr,
-			wantErr: true,
+			exp: ct.DBOpsSummary{},
+			err: testRepoErr,
 		},
 
 		{
@@ -290,9 +402,8 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				fetchResp: nil,
 				fetchErr:  testRepoErr,
 			},
-			exp:     ct.DBOpsSummary{},
-			err:     testRepoErr,
-			wantErr: true,
+			exp: ct.DBOpsSummary{},
+			err: testRepoErr,
 		},
 		{
 			name: "Replace Data error",
@@ -308,9 +419,8 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				},
 				createErr: testRepoErr,
 			},
-			exp:     ct.DBOpsSummary{},
-			err:     testRepoErr,
-			wantErr: true,
+			exp: ct.DBOpsSummary{},
+			err: testRepoErr,
 		},
 		{
 			name: "No changes",
@@ -329,8 +439,7 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				TotalOps:     0,
 				TotalRecs:    3,
 			},
-			err:     nil,
-			wantErr: false,
+			err: nil,
 		},
 		{
 			name: "Same source date, but different record",
@@ -361,8 +470,7 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				TotalOps:     1,
 				TotalRecs:    3,
 			},
-			err:     nil,
-			wantErr: false,
+			err: nil,
 		},
 		{
 			name: "One updated",
@@ -393,8 +501,7 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				TotalOps:     1,
 				TotalRecs:    3,
 			},
-			err:     nil,
-			wantErr: false,
+			err: nil,
 		},
 		{
 			name: "Two new",
@@ -423,8 +530,7 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				TotalOps:     2,
 				TotalRecs:    3,
 			},
-			err:     nil,
-			wantErr: false,
+			err: nil,
 		},
 		{
 			name: "All new",
@@ -451,24 +557,24 @@ func TestCocktail_UpdateDB(t *testing.T) {
 				TotalOps:     3,
 				TotalRecs:    3,
 			},
-			err:     nil,
-			wantErr: false,
+			err: nil,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mRepo := mocks.NewCocktailRepo()
 			mRepo.On("ReadAll").Return(tt.repo.readResp, tt.repo.readErr)
-			mRepo.On("ReplaceData", tt.repo.createArg).Return(tt.repo.createErr)
-			mRepo.On("FetchData").Return(tt.repo.fetchResp, tt.repo.fetchErr)
+			mRepo.On("ReplaceDB", tt.repo.createArg).Return(tt.repo.createErr)
+			mRepo.On("Fetch").Return(tt.repo.fetchResp, tt.repo.fetchErr)
 			svc := NewCocktail(mRepo)
 			require.NotNil(t, svc)
 
 			out, err := svc.UpdateDB()
-			if tt.wantErr {
+			if tt.err != nil {
 				require.NotNil(t, err)
 				assert.Equal(t, ct.DBOpsSummary{}, out)
-				assert.IsType(t, tt.err, err)
+				assert.ErrorIs(t, err, tt.err)
 				return
 			}
 			require.Nil(t, err)
